@@ -1,0 +1,95 @@
+{{- if .Values.storage.enabled }}
+{{- $selector := include "kowiki.selector" (dict "root" . "component" "s3") }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-s3-config
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+stringData:
+  s3.json: |
+    {
+      "identities": [
+        {
+          "name": "kowiki",
+          "credentials": [{"accessKey": {{ .Values.storage.accessKey | quote }}, "secretKey": {{ .Values.storage.secretKey | quote }}}],
+          "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-s3
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.storage.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-s3
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $selector | nindent 8 }}
+    spec:
+      containers:
+        - name: seaweedfs
+          image: {{ .Values.storage.image }}
+          args: ["server", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json"]
+          ports:
+            - name: s3
+              containerPort: 8333
+          readinessProbe:
+            tcpSocket:
+              port: s3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/seaweedfs
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-s3
+        - name: config
+          secret:
+            secretName: {{ .Release.Name }}-s3-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-s3
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- $selector | nindent 4 }}
+  ports:
+    - name: s3
+      port: 8333
+      targetPort: s3
+{{- end }}

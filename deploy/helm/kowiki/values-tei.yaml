@@ -1,0 +1,9 @@
+embedding:
+  kind: tei
+  model: BAAI/bge-m3
+  resources:
+    requests:
+      cpu: "2"
+      memory: 4Gi
+    limits:
+      memory: 8Gi

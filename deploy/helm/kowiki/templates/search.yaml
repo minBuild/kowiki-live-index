@@ -1,0 +1,59 @@
+{{- $selector := include "kowiki.selector" (dict "root" . "component" "search") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-search
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search
+spec:
+  replicas: {{ .Values.search.replicas }}
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $selector | nindent 8 }}
+      annotations:
+        {{- include "kowiki.checksum" . | nindent 8 }}
+    spec:
+      containers:
+        - name: search
+          {{- include "kowiki.image" . | nindent 10 }}
+          args: ["search-api"]
+          {{- include "kowiki.env" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-search
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  selector:
+    {{- $selector | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      nodePort: {{ .Values.search.nodePort }}

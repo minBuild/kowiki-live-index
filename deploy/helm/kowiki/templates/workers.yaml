@@ -1,0 +1,82 @@
+{{- range $name, $worker := .Values.workers }}
+{{- $selector := include "kowiki.selector" (dict "root" $ "component" $name) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "kowiki.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  {{- if not $.Values.keda.enabled }}
+  replicas: {{ $worker.minReplicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $selector | nindent 8 }}
+      annotations:
+        {{- include "kowiki.checksum" $ | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: {{ $name }}
+          {{- include "kowiki.image" $ | nindent 10 }}
+          args: [{{ $name | quote }}]
+          {{- include "kowiki.env" $ | nindent 10 }}
+          ports:
+            - name: metrics
+              containerPort: 9100
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 10
+          resources:
+            {{- toYaml $worker.resources | nindent 12 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "kowiki.labels" $ | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+{{- if $.Values.keda.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "kowiki.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ $.Release.Name }}-{{ $name }}
+  minReplicaCount: {{ $worker.minReplicas }}
+  maxReplicaCount: {{ $worker.maxReplicas }}
+  pollingInterval: {{ $.Values.keda.pollingInterval }}
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ include "kowiki.kafka" $ }}
+        consumerGroup: {{ $.Values.groupPrefix }}-{{ $name }}
+        topic: {{ $.Values.topicPrefix }}{{ $worker.topic }}
+        lagThreshold: {{ $worker.lagThreshold | quote }}
+        offsetResetPolicy: earliest
+{{- end }}
+{{- end }}

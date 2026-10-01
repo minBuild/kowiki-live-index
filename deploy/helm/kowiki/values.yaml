@@ -1,0 +1,114 @@
+image:
+  repository: kowiki-live-index
+  tag: dev
+  pullPolicy: IfNotPresent
+
+topicPrefix: ""
+groupPrefix: kowiki
+
+kafka:
+  bootstrap: ""
+
+qdrant:
+  url: http://qdrant:6333
+
+collection:
+  alias: kowiki
+  version: v1
+
+storage:
+  enabled: true
+  image: chrislusf/seaweedfs:4.48
+  size: 10Gi
+  bucket: kowiki
+  endpoint: ""
+  accessKey: kowiki
+  secretKey: kowiki-secret
+
+embedding:
+  enabled: true
+  kind: ollama
+  model: bge-m3
+  dim: 1024
+  url: ""
+  ollama:
+    image: ollama/ollama:0.35.0
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+  storage: 5Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+extraEnv: {}
+
+keda:
+  enabled: true
+  pollingInterval: 15
+
+workers:
+  parse:
+    topic: doc.events
+    minReplicas: 1
+    maxReplicas: 6
+    lagThreshold: 50
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        memory: 768Mi
+  chunk:
+    topic: doc.parsed
+    minReplicas: 1
+    maxReplicas: 4
+    lagThreshold: 100
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        memory: 512Mi
+  embed:
+    topic: doc.chunks
+    minReplicas: 1
+    maxReplicas: 4
+    lagThreshold: 20
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 768Mi
+  index:
+    topic: chunk.embeddings
+    minReplicas: 1
+    maxReplicas: 4
+    lagThreshold: 50
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 768Mi
+
+live:
+  enabled: true
+
+search:
+  replicas: 1
+  nodePort: 30080
+
+backfill:
+  enabled: false
+  source: https://dumps.wikimedia.org/other/enterprise_html/runs/20250301/kowiki-NS0-20250301-ENTERPRISE-HTML.json.tar.gz
+  limit: 10000
+  workers: 8
+
+podMonitor:
+  enabled: false
+  labels:
+    release: monitoring

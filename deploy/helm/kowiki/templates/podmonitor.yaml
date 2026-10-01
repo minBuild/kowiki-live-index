@@ -1,0 +1,23 @@
+{{- if .Values.podMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+    {{- toYaml .Values.podMonitor.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kowiki
+      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [embedding, s3]
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+    - port: http
+      path: /metrics/
+{{- end }}

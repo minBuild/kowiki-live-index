@@ -1,0 +1,95 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: doc.events
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: doc.parsed
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: doc.chunks
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: chunk.embeddings
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: doc.events.dlq
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: doc.parsed.dlq
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: doc.chunks.dlq
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    retention.ms: 2592000000
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: chunk.embeddings.dlq
+  labels:
+    strimzi.io/cluster: kowiki
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    retention.ms: 2592000000

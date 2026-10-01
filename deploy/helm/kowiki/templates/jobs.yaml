@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "kowiki.selector" (dict "root" . "component" "bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          {{- include "kowiki.image" . | nindent 10 }}
+          args: ["bootstrap", "--no-topics"]
+          {{- include "kowiki.env" . | nindent 10 }}
+{{- if .Values.backfill.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-backfill
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "kowiki.selector" (dict "root" . "component" "backfill") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: backfill
+          {{- include "kowiki.image" . | nindent 10 }}
+          args:
+            - backfill
+            - {{ .Values.backfill.source | quote }}
+            - --limit
+            - {{ .Values.backfill.limit | quote }}
+            - --workers
+            - {{ .Values.backfill.workers | quote }}
+          {{- include "kowiki.env" . | nindent 10 }}
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+{{- end }}

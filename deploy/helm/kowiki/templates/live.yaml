@@ -1,0 +1,44 @@
+{{- if .Values.live.enabled }}
+{{- $selector := include "kowiki.selector" (dict "root" . "component" "live") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-live
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+    app.kubernetes.io/component: live
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $selector | nindent 8 }}
+      annotations:
+        {{- include "kowiki.checksum" . | nindent 8 }}
+    spec:
+      containers:
+        - name: live
+          {{- include "kowiki.image" . | nindent 10 }}
+          args: ["live"]
+          {{- include "kowiki.env" . | nindent 10 }}
+          ports:
+            - name: metrics
+              containerPort: 9100
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+{{- end }}

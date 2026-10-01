@@ -1,0 +1,97 @@
+{{- if .Values.embedding.enabled }}
+{{- $selector := include "kowiki.selector" (dict "root" . "component" "embedding") }}
+{{- $tei := eq .Values.embedding.kind "tei" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-embedding
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.embedding.storage }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-embedding
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+    app.kubernetes.io/component: embedding
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $selector | nindent 8 }}
+    spec:
+      {{- if not $tei }}
+      initContainers:
+        - name: pull-model
+          image: {{ .Values.embedding.ollama.image }}
+          command:
+            - sh
+            - -c
+            - ollama serve & pid=$!; until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull {{ .Values.embedding.model }}; kill $pid
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+      {{- end }}
+      containers:
+        - name: embedding
+          {{- if $tei }}
+          image: {{ .Values.embedding.tei.image }}
+          args: ["--model-id", {{ .Values.embedding.model | quote }}, "--port", "80"]
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          volumeMounts:
+            - name: models
+              mountPath: /data
+          {{- else }}
+          image: {{ .Values.embedding.ollama.image }}
+          ports:
+            - name: http
+              containerPort: 11434
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          {{- end }}
+          resources:
+            {{- toYaml .Values.embedding.resources | nindent 12 }}
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-embedding
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-embedding
+  labels:
+    {{- include "kowiki.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- $selector | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ if $tei }}80{{ else }}11434{{ end }}
+      targetPort: http
+{{- end }}
