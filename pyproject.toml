@@ -1,0 +1,52 @@
+[project]
+name = "kowiki-live-index"
+version = "0.1.0"
+description = "한국어 위키백과 실시간 RAG 색인 파이프라인"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.13",
+    "boto3>=1.40",
+    "confluent-kafka>=2.11",
+    "fastapi>=0.120",
+    "httpx>=0.28",
+    "lxml>=6.0",
+    "prometheus-client>=0.22",
+    "pydantic>=2.11",
+    "pydantic-settings>=2.10",
+    "qdrant-client>=1.15",
+    "uvicorn>=0.35",
+]
+
+[project.optional-dependencies]
+hf = ["tokenizers>=0.22"]
+
+[project.scripts]
+kowiki = "kowiki.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.4", "ruff>=0.13"]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "kowiki"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["e2e: Kafka와 Qdrant가 떠 있어야 하는 테스트"]
+addopts = "-m 'not e2e'"
+filterwarnings = [
+    "ignore:Payload indexes have no effect:UserWarning",
+    "ignore:Using `httpx` with `starlette.testclient`",
+]
