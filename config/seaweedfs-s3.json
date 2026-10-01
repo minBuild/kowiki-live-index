@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "kowiki",
+      "credentials": [{ "accessKey": "kowiki", "secretKey": "kowiki-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

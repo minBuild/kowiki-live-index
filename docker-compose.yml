@@ -1,0 +1,143 @@
+name: kowiki
+
+x-app: &app
+  build: .
+  image: kowiki-live-index:dev
+  restart: unless-stopped
+  environment:
+    KOWIKI_KAFKA_BOOTSTRAP: kafka:9092
+    KOWIKI_QDRANT_URL: http://qdrant:6333
+    KOWIKI_BLOB_URL: s3://kowiki
+    KOWIKI_S3_ENDPOINT: http://s3:8333
+    KOWIKI_S3_ACCESS_KEY: kowiki
+    KOWIKI_S3_SECRET_KEY: kowiki-secret
+    KOWIKI_EMBED_BACKEND: ${KOWIKI_EMBED_BACKEND:-openai}
+    KOWIKI_EMBED_BASE_URL: ${KOWIKI_EMBED_BASE_URL:-http://embeddings:11434/v1}
+    KOWIKI_EMBED_MODEL: ${KOWIKI_EMBED_MODEL:-bge-m3}
+    KOWIKI_EMBED_DIM: ${KOWIKI_EMBED_DIM:-1024}
+    KOWIKI_COLLECTION_VERSION: ${KOWIKI_COLLECTION_VERSION:-v1}
+  depends_on:
+    bootstrap:
+      condition: service_completed_successfully
+
+services:
+  kafka:
+    image: apache/kafka:4.3.1
+    ports:
+      - "29092:29092"
+    environment:
+      CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "8333:8333"
+    volumes:
+      - s3-data:/data
+      - ./config/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+
+  embeddings:
+    image: ollama/ollama:0.35.0
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ollama list > /dev/null
+      interval: 5s
+      retries: 20
+
+  embeddings-pull:
+    image: ollama/ollama:0.35.0
+    environment:
+      OLLAMA_HOST: embeddings:11434
+    entrypoint: ["ollama", "pull", "${KOWIKI_EMBED_MODEL:-bge-m3}"]
+    depends_on:
+      embeddings:
+        condition: service_healthy
+
+  bootstrap:
+    <<: *app
+    restart: "no"
+    command: ["bootstrap"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      s3:
+        condition: service_started
+      embeddings-pull:
+        condition: service_completed_successfully
+
+  live:
+    <<: *app
+    command: ["live"]
+
+  parser:
+    <<: *app
+    command: ["parse"]
+
+  chunker:
+    <<: *app
+    command: ["chunk"]
+
+  embedder:
+    <<: *app
+    command: ["embed"]
+
+  indexer:
+    <<: *app
+    command: ["index"]
+
+  search:
+    <<: *app
+    command: ["search-api"]
+    ports:
+      - "8000:8000"
+
+  cli:
+    <<: *app
+    restart: "no"
+    profiles: ["cli"]
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.5.0
+    profiles: ["tools"]
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+
+volumes:
+  qdrant-data:
+  s3-data:
+  ollama-models:
